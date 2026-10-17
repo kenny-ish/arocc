@@ -6599,7 +6599,14 @@ const CallExpr = union(enum) {
                 .__builtin_complex => {
                     const last_param = args[args.len - 1].qt(&p.tree);
                     if (last_param.isInvalid()) return .invalid;
-                    return try last_param.toComplex(p.comp);
+                    // checkComplexArg has already reported arguments that cannot form a complex type.
+                    const real_qt = if (last_param.get(p.comp, .atomic)) |atomic| atomic else last_param;
+                    const sk = real_qt.scalarKind(p.comp);
+                    if (!sk.isFloat() or !sk.isReal()) return .invalid;
+                    if (real_qt.get(p.comp, .float)) |float| {
+                        if (float == .fp16) return .invalid;
+                    }
+                    return try real_qt.toComplex(p.comp);
                 },
                 .__atomic_compare_exchange,
                 .__atomic_compare_exchange_n,
@@ -9770,9 +9777,15 @@ fn checkArithOverflowArg(p: *Parser, builtin_tok: TokenIndex, first_after: Token
 fn checkComplexArg(p: *Parser, builtin_tok: TokenIndex, first_after: TokenIndex, param_tok: TokenIndex, arg: *Result, idx: u32) !void {
     _ = builtin_tok;
     _ = first_after;
-    if (idx <= 1 and !arg.qt.isFloat(p.comp)) {
-        try p.err(param_tok, .not_floating_type, .{arg.qt});
-    } else if (idx == 1) {
+    if (idx > 1) return;
+    const sk = arg.qt.scalarKind(p.comp);
+    if (!sk.isFloat() or !sk.isReal()) {
+        return p.err(param_tok, .not_floating_type, .{arg.qt});
+    }
+    if (arg.qt.get(p.comp, .float)) |float| {
+        if (float == .fp16) return p.err(param_tok, .complex_fp16, .{});
+    }
+    if (idx == 1) {
         const prev_idx = p.list_buf.items[p.list_buf.items.len - 1];
         const prev_qt = prev_idx.qt(&p.tree);
         if (!prev_qt.eql(arg.qt, p.comp)) {

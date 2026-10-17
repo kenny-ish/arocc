@@ -2069,6 +2069,11 @@ pub const not_floating_type: Diagnostic = .{
     .kind = .@"error",
 };
 
+pub const complex_fp16: Diagnostic = .{
+    .fmt = "'_Complex __fp16' is invalid",
+    .kind = .@"error",
+};
+
 pub const elementwise_type: Diagnostic = .{
     .fmt = "argument must be a vector{s} (was '{qt}')",
     .kind = .@"error",
